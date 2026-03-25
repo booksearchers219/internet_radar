@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+    <title>Cyber Event Map</title>
+
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+    <style>
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+    </style>
+
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<script>
+
+    var map = L.map('map').setView([20, 0], 2);
+    var markers = L.markerClusterGroup();
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18
+    }).addTo(map);
+
+    // Example markers (we will automate later)
+
+    fetch("/alerts")
+        .then(response => response.json())
+        .then(data => {
+
+            data.alerts.forEach(function (alert) {
+
+                var lat = alert.lat;
+                var lon = alert.lon;
+
+                if (lat !== undefined && lon !== undefined) {
+                    var marker = L.marker([lat, lon])
+                        .bindPopup(alert.title);
+
+                    markers.addLayer(marker);
+                }
+
+            });
+
+        });
+
+    map.addLayer(markers);
+
+</script>
+
+</body>
+</html>

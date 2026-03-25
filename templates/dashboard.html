@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Internet Radar</title>
+
+<meta http-equiv="refresh" content="30">
+
+<style>
+
+body {
+    background:#111;
+    color:#eee;
+    font-family:monospace;
+    margin:40px;
+}
+
+a {
+    color:#4da3ff;
+}
+
+.panel {
+    border:1px solid #444;
+    padding:20px;
+    margin-bottom:20px;
+}
+
+.severity {
+    font-weight:bold;
+}
+
+.critical {
+    color:#ff4d4d;
+}
+
+.high {
+    color:#ff944d;
+}
+
+.medium {
+    color:#ffd24d;
+}
+
+.info {
+    color:#66b3ff;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>🌐 Internet Radar</h1>
+
+<div class="panel">
+Last Update: {{ data.last_update }}
+</div>
+
+<div class="panel">
+
+<h2>Alerts</h2>
+
+{% for item in data.alerts %}
+
+<p>
+<span class="severity
+{% if item.severity >= 6 %}critical
+{% elif item.severity >= 4 %}high
+{% elif item.severity >= 2 %}medium
+{% else %}info
+{% endif %}">
+
+{% if item.severity >= 6 %}🔴
+{% elif item.severity >= 4 %}🟠
+{% elif item.severity >= 2 %}🟡
+{% else %}🔵
+{% endif %}
+
+{{ item.title }}
+
+</span>
+
+<br>
+
+<a href="{{ item.url }}" target="_blank">View Source</a>
+<br>
+Source: {{ item.source }}
+</p>
+
+{% endfor %}
+
+</div>
+
+<div class="panel">
+
+<h2>Cyber Event Map</h2>
+
+<iframe src="/map" width="100%" height="520"></iframe>
+
+</div>
+
+
+<div class="panel">
+
+<h2>Internet Exposure Trends</h2>
+
+<iframe src="/data/MongoDB_trend.html" width="100%" height="400"></iframe>
+
+<iframe src="/data/ICS_trend.html" width="100%" height="400"></iframe>
+
+<iframe src="/data/RDP_trend.html" width="100%" height="400"></iframe>
+
+</div>
+
+</body>
+</html>
