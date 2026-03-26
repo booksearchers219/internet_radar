@@ -14,22 +14,62 @@
     <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
     <style>
+
+        #ticker {
+            background: black;
+            color: lime;
+            padding: 6px;
+            font-family: monospace;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        #ticker span {
+            display: inline-block;
+            padding-left: 100%;
+            animation: ticker-scroll 120s linear infinite;
+        }
+
+        #ticker:hover span {
+            animation-play-state: paused;
+        }
+
+        @keyframes ticker-scroll {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+
         #map {
             height: 500px;
             width: 100%;
         }
+
     </style>
 
 </head>
 
 <body>
 
+<div id="ticker"></div>
 <div id="map"></div>
+
 
 <script>
 
-    var map = L.map('map').setView([20, 0], 2);
+    var map = L.map('map', {scrollWheelZoom: false}).setView([20, 0], 2);
     var markers = L.markerClusterGroup();
+
+    map.getContainer().addEventListener('wheel', function (e) {
+        if (e.ctrlKey) {
+            map.scrollWheelZoom.enable();
+        } else {
+            map.scrollWheelZoom.disable();
+        }
+    });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18
@@ -37,27 +77,121 @@
 
     // Example markers (we will automate later)
 
-    fetch("/alerts")
-        .then(response => response.json())
-        .then(data => {
+    function loadAlerts() {
 
-            data.alerts.forEach(function (alert) {
+        fetch("/alerts")
+            .then(response => response.json())
+            .then(data => {
 
-                var lat = alert.lat;
-                var lon = alert.lon;
+                markers.clearLayers();
 
-                if (lat !== undefined && lon !== undefined) {
-                    var marker = L.marker([lat, lon])
-                        .bindPopup(alert.title);
+                data.alerts.forEach(function (alert) {
 
-                    markers.addLayer(marker);
-                }
+                    var lat = alert.lat;
+                    var lon = alert.lon;
+
+                    if (lat !== undefined && lon !== undefined) {
+
+                        var severity = alert.severity || 1;
+
+                        var iconColor = "blue";
+
+                        if (severity >= 5) iconColor = "red";
+                        else if (severity >= 4) iconColor = "orange";
+                        else if (severity >= 3) iconColor = "yellow";
+
+                        var icon = L.icon({
+                            iconUrl: "https://maps.gstatic.com/mapfiles/ms2/micons/" + iconColor + "-dot.png",
+                            iconSize: [32, 32]
+                        });
+
+                        var marker = L.marker([lat, lon], {icon: icon})
+                            .bindPopup(alert.title);
+
+                        markers.addLayer(marker);
+
+                    }
+
+                });
+
+                var titles = data.alerts.map(a => "⚠ " + a.title);
+                document.getElementById("ticker").innerHTML =
+                    "<span>" + titles.join("   |   ") + "</span>";
 
             });
 
-        });
+    }
 
-    map.addLayer(markers);
+    loadAlerts();
+
+    setInterval(loadAlerts, 60000);
+
+    var cyberLayer = markers;
+    cyberLayer.addTo(map);
+
+    // ===== GLOBAL CONFLICT MARKERS =====
+
+    var conflictIcon = L.icon({
+        iconUrl: "https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png",
+        iconSize: [32, 32]
+    });
+
+    var conflictLayer = L.layerGroup();
+
+    var attackLayer = L.layerGroup();
+
+    var conflicts = [
+
+        {name: "Ukraine War", lat: 49.0, lon: 31.0},
+        {name: "Gaza Conflict", lat: 31.5, lon: 34.4},
+        {name: "Sudan Civil War", lat: 15.6, lon: 32.5},
+        {name: "Taiwan Tension", lat: 23.7, lon: 121.0},
+        {name: "South China Sea Disputes", lat: 15.0, lon: 115.0}
+
+    ];
+
+    conflicts.forEach(function (c) {
+
+        L.marker([c.lat, c.lon], {icon: conflictIcon})
+            .addTo(conflictLayer)
+            .bindPopup("<b>" + c.name + "</b><br>Active Conflict");
+
+    });
+
+    conflictLayer.addTo(map);
+    attackLayer.addTo(map);
+
+    // ===== CYBER ATTACK LINES =====
+
+    var attacks = [
+
+        {from: [55.75, 37.61], to: [38.90, -77.03], label: "Russia → USA"},
+        {from: [39.90, 116.40], to: [48.85, 2.35], label: "China → Europe"},
+        {from: [35.68, 51.41], to: [31.77, 35.21], label: "Iran → Israel"}
+
+    ];
+
+    attacks.forEach(function (a) {
+
+        var line = L.polyline([a.from, a.to], {
+            color: "red",
+            weight: 2,
+            opacity: 0.7,
+            dashArray: "5,10"
+        }).bindPopup(a.label);
+
+        attackLayer.addLayer(line);
+
+    });
+
+    var overlays = {
+        "Cyber Alerts": cyberLayer,
+        "Global Conflicts": conflictLayer,
+        "Attack Routes": attackLayer
+    };
+
+    L.control.layers(null, overlays).addTo(map);
+
 
 </script>
 

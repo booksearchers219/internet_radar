@@ -38,9 +38,19 @@ def alerts_api():
 
     for alert in data["alerts"]:
 
-        if "lat" not in alert:
-            alert["lat"] = random.uniform(-70,70)
-            alert["lon"] = random.uniform(-180,180)
+        source = alert.get("source", "")
+
+        if source == "CVE":
+            alert["lat"], alert["lon"] = 38.90, -77.03  # Washington DC
+
+        elif source == "GitHub":
+            alert["lat"], alert["lon"] = 37.77, -122.41  # San Francisco
+
+        elif source == "Tech News":
+            alert["lat"], alert["lon"] = 40.71, -74.00  # New York
+
+        else:
+            alert["lat"], alert["lon"] = 20, 0
 
     return data
 
