@@ -25,32 +25,33 @@ def home():
 def data_files(filename):
     return send_from_directory("data", filename)
 
+
 @app.route("/map")
 def cyber_map():
     return render_template("map.html")
 
+
 import random
+
 
 @app.route("/alerts")
 def alerts_api():
-
     data = load_data()
 
+    import random
+
+    regions = [
+        (38.90, -77.03),
+        (37.77, -122.41),
+        (40.71, -74.00),
+        (51.50, -0.12),
+        (48.85, 2.35),
+        (35.68, 139.69),
+        (31.23, 121.47),
+    ]
+
     for alert in data["alerts"]:
-
-        source = alert.get("source", "")
-
-        if source == "CVE":
-            alert["lat"], alert["lon"] = 38.90, -77.03  # Washington DC
-
-        elif source == "GitHub":
-            alert["lat"], alert["lon"] = 37.77, -122.41  # San Francisco
-
-        elif source == "Tech News":
-            alert["lat"], alert["lon"] = 40.71, -74.00  # New York
-
-        else:
-            alert["lat"], alert["lon"] = 20, 0
+        alert["lat"], alert["lon"] = random.choice(regions)
 
     return data
 

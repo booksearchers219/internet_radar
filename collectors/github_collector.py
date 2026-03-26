@@ -1,8 +1,13 @@
 import requests
+from event_schema import RadarEvent
+from datetime import datetime
+
 
 def get_github_alerts():
 
     url = "https://api.github.com/search/repositories?q=security"
+
+    alerts = []
 
     try:
 
@@ -10,19 +15,21 @@ def get_github_alerts():
 
         items = r.json().get("items", [])[:5]
 
-        alerts = []
-
         for repo in items:
 
-            alerts.append({
-                "title": f"GitHub repo: {repo['name']}",
-                "url": repo["html_url"],
-                "source": "GitHub",
-                "severity": 3
-            })
+            event = RadarEvent(
+                title=f"GitHub repo: {repo['name']}",
+                source="GitHub",
+                type="repository",
+                severity=3,
+                url=repo["html_url"],
+                timestamp=datetime.utcnow().isoformat()
+            )
 
-        return alerts
+            alerts.append(event.to_dict())
 
     except Exception as e:
+
         print("GitHub collector error:", e)
-        return []
+
+    return alerts

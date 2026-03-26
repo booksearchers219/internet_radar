@@ -9,9 +9,13 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+    <script src="https://unpkg.com/leaflet-ant-path/dist/leaflet-ant-path.min.js"></script>
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
     <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
 
     <style>
 
@@ -61,7 +65,6 @@
 <script>
 
     var map = L.map('map', {scrollWheelZoom: false}).setView([20, 0], 2);
-    var markers = L.markerClusterGroup();
 
     map.getContainer().addEventListener('wheel', function (e) {
         if (e.ctrlKey) {
@@ -70,130 +73,205 @@
             map.scrollWheelZoom.disable();
         }
     });
+    console.log("NEW MAP SCRIPT RUNNING");
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 18
     }).addTo(map);
 
-    // Example markers (we will automate later)
+    var cveLayer = L.markerClusterGroup();
+    var githubLayer = L.markerClusterGroup();
+    var newsLayer = L.markerClusterGroup();
+    var attackLayer = L.layerGroup();
+    var conflictLayer = L.layerGroup();
+    var outageLayer = L.layerGroup();
+    var heatLayer = L.heatLayer([], {
+        radius: 30,
+        blur: 20,
+        maxZoom: 5
+    });
+
+    map.addLayer(cveLayer);
+    map.addLayer(githubLayer);
+    map.addLayer(newsLayer);
+    map.addLayer(conflictLayer);
+    map.addLayer(outageLayer);
+    map.addLayer(attackLayer);
+    map.addLayer(heatLayer);
 
     function loadAlerts() {
 
         fetch("/alerts")
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
 
-                markers.clearLayers();
+                cveLayer.clearLayers();
+                githubLayer.clearLayers();
+                newsLayer.clearLayers();
+                attackLayer.clearLayers();
+                heatLayer.setLatLngs([]);
 
-                data.alerts.forEach(function (alert) {
+                data.alerts.forEach(alert => {
 
-                    var lat = alert.lat;
-                    var lon = alert.lon;
+                    // Assign location
+                    let lat = alert.lat;
+                    let lon = alert.lon;
 
-                    if (lat !== undefined && lon !== undefined) {
+                    if (!lat || !lon) {
+                        let title = alert.title.toLowerCase();
 
-                        var severity = alert.severity || 1;
+                        if (title.includes("russia")) {
+                            lat = 55;
+                            lon = 37;
+                        } else if (title.includes("china")) {
+                            lat = 35;
+                            lon = 103;
+                        } else if (title.includes("us") || title.includes("america")) {
+                            lat = 38.9;
+                            lon = -77;
+                        } else if (title.includes("europe")) {
+                            lat = 50;
+                            lon = 10;
+                        } else {
+                            // stable pseudo-random based on title
+                            let hash = 0;
+                            let key = (alert.url || alert.title).toLowerCase();
 
-                        var iconColor = "blue";
+                            // normalize URL (remove query params + trailing slash)
+                            key = key.split('?')[0];
+                            if (key.endsWith('/')) {
+                                key = key.slice(0, -1);
+                            }
 
-                        if (severity >= 5) iconColor = "red";
-                        else if (severity >= 4) iconColor = "orange";
-                        else if (severity >= 3) iconColor = "yellow";
 
-                        var icon = L.icon({
-                            iconUrl: "https://maps.gstatic.com/mapfiles/ms2/micons/" + iconColor + "-dot.png",
-                            iconSize: [32, 32]
-                        });
+                            for (let i = 0; i < key.length; i++) {
+                                hash = key.charCodeAt(i) + ((hash << 5) - hash);
+                            }
 
-                        var marker = L.marker([lat, lon], {icon: icon})
-                            .bindPopup(alert.title);
-
-                        markers.addLayer(marker);
-
+                            lat = ((hash % 140) - 70);
+                            lon = ((hash % 360) - 180);
+                        }
                     }
+
+                    // severity color
+                    let iconUrl;
+
+                    if (alert.severity >= 5) {
+                        iconUrl = "https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png";
+                    } else if (alert.severity >= 3) {
+                        iconUrl = "https://maps.gstatic.com/mapfiles/ms2/micons/orange-dot.png";
+                    } else {
+                        iconUrl = "https://maps.gstatic.com/mapfiles/ms2/micons/yellow-dot.png";
+                    }
+
+                    var icon = L.icon({
+                        iconUrl: iconUrl,
+                        iconSize: [32, 32]
+                    });
+
+                    // jitter
+
+
+                    var marker = L.marker([lat, lon], {icon: icon})
+                        .bindPopup(alert.title);
+
+                    if (alert.type === "vulnerability") {
+                        cveLayer.addLayer(marker);
+                    } else if (alert.type === "repository") {
+                        githubLayer.addLayer(marker);
+                    } else {
+                        newsLayer.addLayer(marker);
+                    }
+
+                    // heatmap
+                    heatLayer.addLatLng([lat, lon, alert.severity * 10]);
+
+                    // attack lines
+                    let color = "yellow";
+
+                    if (alert.severity >= 5) {
+                        color = "red";
+                    } else if (alert.severity >= 3) {
+                        color = "orange";
+                    }
+
+                    // determine target based on type
+                    let target = [38.90, -77.03]; // default
+
+                    if (alert.type === "vulnerability") {
+                        target = [50, 10]; // Europe
+                    } else if (alert.type === "repository") {
+                        target = [37.77, -122.41]; // Silicon Valley
+                    } else if (alert.type === "news") {
+                        target = [51.50, -0.12]; // London
+                    }
+
+// create animated line
+                    var line = L.polyline.antPath(
+                        [[lat, lon], target],
+                        {
+                            color: color,
+                            weight: 4,
+                            opacity: 0.9,
+                            delay: 400,
+                            dashArray: [10, 20],
+                            pulseColor: '#FFFFFF'
+                        }
+                    );
+
+                    attackLayer.addLayer(line);
+
 
                 });
 
+                // ticker MUST be inside .then()
                 var titles = data.alerts.map(a => "⚠ " + a.title);
                 document.getElementById("ticker").innerHTML =
-                    "<span>" + titles.join("   |   ") + "</span>";
+                    "<span>" + titles.join(" | ") + "</span>";
 
             });
 
     }
 
     loadAlerts();
-
     setInterval(loadAlerts, 60000);
 
-    var cyberLayer = markers;
-    cyberLayer.addTo(map);
-
-    // ===== GLOBAL CONFLICT MARKERS =====
-
-    var conflictIcon = L.icon({
-        iconUrl: "https://maps.gstatic.com/mapfiles/ms2/micons/red-dot.png",
-        iconSize: [32, 32]
-    });
-
-    var conflictLayer = L.layerGroup();
-
-    var attackLayer = L.layerGroup();
-
     var conflicts = [
-
-        {name: "Ukraine War", lat: 49.0, lon: 31.0},
-        {name: "Gaza Conflict", lat: 31.5, lon: 34.4},
-        {name: "Sudan Civil War", lat: 15.6, lon: 32.5},
-        {name: "Taiwan Tension", lat: 23.7, lon: 121.0},
-        {name: "South China Sea Disputes", lat: 15.0, lon: 115.0}
-
+        {lat: 49, lon: 31, name: "Ukraine War"},
+        {lat: 31.5, lon: 34.4, name: "Gaza Conflict"},
+        {lat: 15.6, lon: 32.5, name: "Sudan Civil War"},
+        {lat: 23.7, lon: 121, name: "Taiwan Tension"}
     ];
 
-    conflicts.forEach(function (c) {
-
-        L.marker([c.lat, c.lon], {icon: conflictIcon})
-            .addTo(conflictLayer)
-            .bindPopup("<b>" + c.name + "</b><br>Active Conflict");
-
+    conflicts.forEach(c => {
+        L.marker([c.lat, c.lon])
+            .bindPopup(c.name)
+            .addTo(conflictLayer);
     });
 
-    conflictLayer.addTo(map);
-    attackLayer.addTo(map);
-
-    // ===== CYBER ATTACK LINES =====
-
-    var attacks = [
-
-        {from: [55.75, 37.61], to: [38.90, -77.03], label: "Russia → USA"},
-        {from: [39.90, 116.40], to: [48.85, 2.35], label: "China → Europe"},
-        {from: [35.68, 51.41], to: [31.77, 35.21], label: "Iran → Israel"}
-
+    var outages = [
+        {lat: 50.45, lon: 30.52, name: "Ukraine ISP"},
+        {lat: 35.68, lon: 51.41, name: "Iran Filtering"},
+        {lat: 15.60, lon: 32.50, name: "Sudan Blackout"},
+        {lat: 33.68, lon: 73.04, name: "Pakistan Mobile"}
     ];
 
-    attacks.forEach(function (a) {
-
-        var line = L.polyline([a.from, a.to], {
-            color: "red",
-            weight: 2,
-            opacity: 0.7,
-            dashArray: "5,10"
-        }).bindPopup(a.label);
-
-        attackLayer.addLayer(line);
-
+    outages.forEach(o => {
+        L.marker([o.lat, o.lon])
+            .bindPopup(o.name)
+            .addTo(outageLayer);
     });
 
-    var overlays = {
-        "Cyber Alerts": cyberLayer,
+    L.control.layers(null, {
+        "CVE Alerts": cveLayer,
+        "GitHub Alerts": githubLayer,
+        "News Alerts": newsLayer,
+        "Heatmap": heatLayer,
+        "Attack Routes": attackLayer,
         "Global Conflicts": conflictLayer,
-        "Attack Routes": attackLayer
-    };
-
-    L.control.layers(null, overlays).addTo(map);
-
+        "Internet Outages": outageLayer
+    }).addTo(map);
 
 </script>
-
 </body>
 </html>
