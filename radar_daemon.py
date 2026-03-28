@@ -7,6 +7,9 @@ from collectors.cve_collector import get_cves
 from collectors.github_collector import get_github_alerts
 from collectors.rss_collector import get_news
 from concurrent.futures import ThreadPoolExecutor
+from insight_engine import generate_insights
+from collectors.shodan_collector import get_shodan_alerts
+
 
 DATA_FILE = "data/radar.json"
 
@@ -63,7 +66,8 @@ def collect_data():
             executor.submit(detect_changes),
             executor.submit(get_cves),
             executor.submit(get_github_alerts),
-            executor.submit(get_news)
+            executor.submit(get_news),
+            executor.submit(get_shodan_alerts)  # 👈 ADD THIS LINE
         ]
 
         for future in futures:
@@ -106,20 +110,36 @@ def collect_data():
         alert["score"] = score_event(alert)
         print(f"[{alert['score']}] {alert['title']}")
 
+        if alert.get("learning"):
+            print(f"   🧠 {alert['learning']}")
+
     # 🔹 Sort + limit
     alerts.sort(key=lambda x: x["score"], reverse=True)
     alerts = alerts[:50]
 
+    # 🔹 Generate insights
+    insights = generate_insights(alerts)
+
     # 🔹 Save
     radar_data = {
         "last_update": now,
-        "alerts": alerts
+        "alerts": alerts,
+        "insights": insights
     }
 
     with open(DATA_FILE, "w") as f:
         json.dump(radar_data, f, indent=2)
 
     print("Radar data saved\n")
+
+    # 🔥 SHOW INSIGHTS IN TERMINAL
+    print("\n" + "=" * 40)
+    print("🧠 INSIGHTS ENGINE OUTPUT")
+    print("=" * 40 + "\n")
+    for i in insights:
+        print(i)
+
+    print("\n-----------------------------\n")
 
 
 def main():
@@ -128,8 +148,6 @@ def main():
         collect_data()
         print("Sleeping 600 seconds...\n")
         time.sleep(600)
-
-
 
 
 if __name__ == "__main__":

@@ -57,6 +57,16 @@ Last Update: {{ data.last_update }}
 
 <div class="panel">
 
+<h2>🧠 Insights</h2>
+
+{% for i in data.insights %}
+<p>{{ i }}</p>
+{% endfor %}
+
+</div>
+
+<div class="panel">
+
 <h2>Alerts</h2>
 
 {% for item in data.alerts %}

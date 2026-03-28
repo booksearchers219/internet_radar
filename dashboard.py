@@ -17,7 +17,7 @@ def load_data():
 @app.route("/")
 def home():
     data = load_data()
-    return render_template("dashboard.html", data=data)
+    return render_template("dashboard.html", data=data, insights=data.get("insights", []))
 
 
 # NEW ROUTE — serves chart files

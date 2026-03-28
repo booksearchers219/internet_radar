@@ -1,16 +1,40 @@
-# This is a sample Python script.
+from collectors.shodan_collector import get_shodan_alerts
+from collectors.secret_collector import get_secret_alerts
+from insight_engine import generate_insights
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+def run_radar():
+    print("\n==============================")
+    print("🌐 INTERNET RADAR STARTING")
+    print("==============================\n")
+
+    alerts = []
+
+    # Collect data
+    alerts.extend(get_secret_alerts())
+    alerts.extend(get_shodan_alerts())
+
+    # Display results
+    if not alerts:
+        print("No alerts found.")
+        return
+
+    print("🚨 ALERTS:\n")
+
+    for alert in alerts:
+        print(f"🔹 {alert['title']}")
+        if alert.get("url"):
+            print(f"   🔗 {alert['url']}")
+        print(f"   📡 Source: {alert['source']}")
+        print(f"   ⚠️ Severity: {alert['severity']}")
+        print()
+
+        print("\n🧠 INSIGHTS:\n")
+
+        insights = generate_insights(alerts)
+
+        for i in insights:
+            print(i)
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    run_radar()
