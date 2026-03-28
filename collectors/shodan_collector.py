@@ -1,12 +1,18 @@
 import requests
 import random
 import time
+import os
 from datetime import datetime
 
+# Load Shodan API key from environment variable (set in ~/.bashrc)
+SHODAN_API_KEY = os.environ.get("SHODAN_API_KEY")
 
-
-SHODAN_API_KEY = "E2EiszFxibiTL1lxPo0eUS5P3Wi3KuYa"   # ← Your paid key here
-
+if not SHODAN_API_KEY:
+    print("❌ ERROR: SHODAN_API_KEY environment variable is not set!")
+    print("   Make sure you have 'export SHODAN_API_KEY=...' in ~/.bashrc")
+    print("   and run: source ~/.bashrc")
+else:
+    print("✅ Shodan API key loaded successfully from environment")
 # Much richer presets for a paid account
 SHODAN_PRESETS = {
     "Live Webcams": "webcam has_screenshot:true",
