@@ -1,32 +1,91 @@
-#!/bin/bash
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
 
-echo "=============================="
-echo " Internet Radar Git Push"
-echo "=============================="
+# Virtual environments
+venv/
+.env/
+.envrc
+.venv/
 
-# Stage all changes
-git add -A
+# =========================
+# PyCharm / IDE
+# =========================
+.idea/
+*.iml
 
-# Check if anything changed
-if git diff --cached --quiet; then
-    echo "No changes to commit."
-    exit 0
-fi
+# VSCode (just in case)
+.vscode/
 
-echo "Enter commit message:"
-read msg
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
 
-git commit -m "$msg"
+# =========================
+# Logs
+# =========================
+*.log
 
-# Create timestamp tag
-tag="v$(date +%Y.%m.%d-%H%M%S)"
+# =========================
+# Build / dist
+# =========================
+build/
+dist/
+*.egg-info/
 
-echo "Creating tag $tag"
-git tag $tag
+# =========================
+# Archives (IMPORTANT for you)
+# =========================
+*.tar
+*.tar.gz
+*.zip
+*.rar
 
-echo "Pushing to GitHub..."
+# =========================
+# Data files (you may tweak this later)
+# =========================
+data/*.json
 
-git push origin main
-git push origin $tag
+# OPTIONAL: keep history if you want (comment out if needed)
+# !data/shodan_history.json
 
-echo "Push complete."
+# =========================
+# Secrets / API keys
+# =========================
+.env
+.env.*
+secrets.json
+config.json
+
+# =========================
+# Temporary files
+# =========================
+*.tmp
+*.swp
+*.swo
+
+# =========================
+# Jupyter (just in case)
+# =========================
+.ipynb_checkpoints/
+
+# =========================
+# Coverage / testing
+# =========================
+.coverage
+htmlcov/
+
+# =========================
+# Node (if you ever add frontend tooling)
+# =========================
+node_modules/
+
+# =========================
+# Misc
+# =========================
+*.bak
