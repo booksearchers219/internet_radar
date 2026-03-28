@@ -9,6 +9,7 @@ from collectors.rss_collector import get_news
 from concurrent.futures import ThreadPoolExecutor
 from insight_engine import generate_insights
 from collectors.shodan_collector import get_shodan_alerts
+from correlation_engine import detect_correlations
 
 
 DATA_FILE = "data/radar.json"
@@ -87,7 +88,7 @@ def collect_data():
 
     alerts = list(unique.values())
 
-    # ✅ STEP 2 — ASSIGN OR REUSE LOCATION (ONLY ONCE)
+    # ✅ STEP 2 — ASSIGN OR REUSE LOCATION (BETTER DEFAULTS)
     final_alerts = []
 
     for alert in alerts:
@@ -98,8 +99,25 @@ def collect_data():
             alert["lat"] = existing.get("lat")
             alert["lon"] = existing.get("lon")
         else:
-            alert["lat"] = random.uniform(-70, 70)
-            alert["lon"] = random.uniform(-180, 180)
+            # Better realistic defaults instead of pure random
+            title_lower = alert.get("title", "").lower()
+
+            if "russia" in title_lower or "ukraine" in title_lower:
+                alert["lat"] = random.uniform(45, 60)
+                alert["lon"] = random.uniform(20, 50)
+            elif "china" in title_lower:
+                alert["lat"] = random.uniform(20, 45)
+                alert["lon"] = random.uniform(100, 130)
+            elif "us" in title_lower or "america" in title_lower or "microsoft" in title_lower:
+                alert["lat"] = random.uniform(30, 50)
+                alert["lon"] = random.uniform(-130, -70)
+            elif "europe" in title_lower or "github" in title_lower:
+                alert["lat"] = random.uniform(40, 55)
+                alert["lon"] = random.uniform(-10, 30)
+            else:
+                # Gentle random for others
+                alert["lat"] = random.uniform(-60, 70)
+                alert["lon"] = random.uniform(-170, 170)
 
         final_alerts.append(alert)
 
@@ -119,12 +137,14 @@ def collect_data():
 
     # 🔹 Generate insights
     insights = generate_insights(alerts)
+    correlations = detect_correlations(alerts)
 
     # 🔹 Save
     radar_data = {
         "last_update": now,
         "alerts": alerts,
-        "insights": insights
+        "insights": insights,
+        "correlations": correlations
     }
 
     with open(DATA_FILE, "w") as f:

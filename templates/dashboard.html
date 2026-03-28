@@ -1,125 +1,93 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>Internet Radar</title>
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
 
+    <!-- Insights Panel -->
+    <div class="lg:col-span-1 space-y-6">
+        <div class="bg-gray-900 rounded-xl p-6 border border-red-900">
+            <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+                🧠 Live Insights
+            </h2>
 
+            {% for insight in insights %}
+                {% if insight is mapping %}
+                    <!-- Risk Pulse -->
+                    <div class="bg-black p-5 rounded-lg border border-gray-700 mb-4">
+                        <div class="text-3xl font-bold mb-2
+                            {% if insight.risk_level == '🔥 HIGH RISK' %}text-red-500
+                            {% elif insight.risk_level == '⚠️ ELEVATED' %}text-yellow-400
+                            {% else %}text-green-400{% endif %}">
+                            {{ insight.risk_level }}
+                        </div>
+                        <p class="text-sm text-gray-300">
+                            Top Threats:
+                            {% if insight.top_threats %}{{ insight.top_threats|join(', ') }}{% else %}None{% endif %}
+                        </p>
+                        <p class="text-xs text-gray-400 mt-3">
+                            Total Alerts: {{ insight.total_alerts }} | High Severity: {{ insight.high_severity }}
+                        </p>
+                    </div>
+                {% else %}
+                    <!-- Regular insights -->
+                    <div class="p-4 bg-gray-800 rounded-lg text-sm border-l-4 border-red-600">
+                        {{ insight }}
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
 
-<style>
+        <!-- Quick Link to Full Map -->
+        <div class="bg-gray-900 rounded-xl p-6 border border-red-900">
+            <h2 class="text-xl font-semibold mb-4">🌍 Global Map</h2>
+            <a href="/map"
+               class="block w-full text-center bg-red-600 hover:bg-red-700 text-white font-medium py-4 rounded-xl transition-colors">
+                View Full Threat Map →
+            </a>
+        </div>
+    </div>
 
-body {
-    background:#111;
-    color:#eee;
-    font-family:monospace;
-    margin:40px;
-}
+    <!-- Alerts List -->
+    <div class="lg:col-span-2">
+        <h2 class="text-xl font-semibold mb-4">🚨 Active Threats ({{ data.alerts|length }})</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="alerts-container">
+            {% for alert in data.alerts[:12] %}
+            <div class="threat-card bg-gray-900 border border-gray-700 rounded-xl p-5 hover:border-red-600 transition-colors">
+                <div class="flex justify-between items-start gap-3">
+                    <span class="text-red-400 font-medium leading-tight">{{ alert.title }}</span>
 
-a {
-    color:#4da3ff;
-}
+                    {% set sev = alert.severity or alert.score or 2 %}
+                    <span class="text-xs px-3 py-1 rounded font-mono font-bold
+                        {% if sev >= 5 %}bg-red-600 text-white
+                        {% elif sev >= 3 %}bg-orange-500 text-white
+                        {% else %}bg-yellow-500 text-black{% endif %}">
+                        {{ sev }}
+                    </span>
+                </div>
 
-.panel {
-    border:1px solid #444;
-    padding:20px;
-    margin-bottom:20px;
-}
+                <p class="text-xs text-gray-400 mt-3">
+                    {{ alert.source }}
+                    {% if alert.timestamp %}
+                        • {{ alert.timestamp[:10] }}
+                    {% else %}
+                        • Recent
+                    {% endif %}
+                </p>
 
-.severity {
-    font-weight:bold;
-}
+                {% if alert.url %}
+                    <a href="{{ alert.url }}" target="_blank"
+                       class="text-blue-400 text-xs hover:underline block mt-2">
+                        View Details →
+                    </a>
+                {% endif %}
 
-.critical {
-    color:#ff4d4d;
-}
-
-.high {
-    color:#ff944d;
-}
-
-.medium {
-    color:#ffd24d;
-}
-
-.info {
-    color:#66b3ff;
-}
-
-</style>
-</head>
-
-<body>
-
-<h1>🌐 Internet Radar</h1>
-
-<div class="panel">
-Last Update: {{ data.last_update }}
+                {% if alert.learning %}
+                    <p class="text-xs text-gray-500 mt-4 italic border-l-2 border-gray-600 pl-3">
+                        {{ alert.learning }}
+                    </p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
 </div>
-
-<div class="panel">
-
-<h2>🧠 Insights</h2>
-
-{% for i in data.insights %}
-<p>{{ i }}</p>
-{% endfor %}
-
-</div>
-
-<div class="panel">
-
-<h2>Alerts</h2>
-
-{% for item in data.alerts %}
-
-<p>
-<span class="severity
-{% if item.severity >= 6 %}critical
-{% elif item.severity >= 4 %}high
-{% elif item.severity >= 2 %}medium
-{% else %}info
-{% endif %}">
-
-{% if item.severity >= 6 %}🔴
-{% elif item.severity >= 4 %}🟠
-{% elif item.severity >= 2 %}🟡
-{% else %}🔵
-{% endif %}
-
-{{ item.title }}
-
-</span>
-
-<br>
-
-<a href="{{ item.url }}" target="_blank">View Source</a>
-<br>
-Source: {{ item.source }}
-</p>
-
-{% endfor %}
-
-</div>
-
-<div class="panel">
-
-<h2>Cyber Event Map</h2>
-
-<iframe src="/map" width="100%" height="520"></iframe>
-
-</div>
-
-
-<div class="panel">
-
-<h2>Internet Exposure Trends</h2>
-
-<iframe src="/data/MongoDB_trend.html" width="100%" height="400"></iframe>
-
-<iframe src="/data/ICS_trend.html" width="100%" height="400"></iframe>
-
-<iframe src="/data/RDP_trend.html" width="100%" height="400"></iframe>
-
-</div>
-
-</body>
-</html>
+{% endblock %}

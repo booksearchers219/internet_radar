@@ -9,9 +9,36 @@ def generate_insights(alerts):
     if exploit_hits:
         insights.append(f"🚨 Exploit activity detected: {len(exploit_hits)} events")
 
-    # 🔥 Top threat
-    top = max(alerts, key=lambda x: x.get("severity", 0))
-    insights.append(f"🔥 Top Threat: {top['title']}")
+    top_threats = []
+
+    titles = [a.get("title", "").lower() for a in alerts]
+
+    # 🔥 Classic vuln types
+    if any("sql injection" in t for t in titles):
+        top_threats.append("SQL Injection")
+
+    if any("xss" in t for t in titles):
+        top_threats.append("XSS")
+
+    if any("buffer overflow" in t for t in titles):
+        top_threats.append("Memory Corruption")
+
+    # 🌍 NEW — Shodan / exposure detection
+    if any("exposed to the internet" in t for t in titles):
+        top_threats.append("Exposed Services")
+
+    if any(a.get("source") == "Shodan" for a in alerts):
+        top_threats.append("Internet Exposure")
+
+    # 🔐 NEW — auth / access issues
+    if any("auth" in t for t in titles):
+        top_threats.append("Authentication Issues")
+
+    # 💣 NEW — injection (broader match)
+    if any("injection" in t for t in titles):
+        top_threats.append("Injection Vulnerabilities")
+
+        top_threats = list(set(top_threats))
 
     # 📡 Count by source
     sources = {}
@@ -41,7 +68,22 @@ def generate_insights(alerts):
     else:
         mood = "🟢 CALM"
 
-    insights.append(f"🧭 Internet Risk Level: {mood}")
+
+
+
+
+    pulse = {
+        "risk_level": mood,
+        "top_threats": top_threats,
+        "total_alerts": len(alerts),
+        "high_severity": len(high)
+    }
+
+    # Remove any existing pulse objects first
+    insights = [i for i in insights if not isinstance(i, dict)]
+
+    # Add fresh pulse
+    insights.append(pulse)
 
     return insights
 
