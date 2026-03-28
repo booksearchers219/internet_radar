@@ -1,82 +1,114 @@
 import requests
 import random
-from datetime import datetime   # ← Moved to the top (important!)
+import time
+from datetime import datetime
 
+
+
+SHODAN_API_KEY = "E2EiszFxibiTL1lxPo0eUS5P3Wi3KuYa"   # ← Your paid key here
+
+# Much richer presets for a paid account
 SHODAN_PRESETS = {
-    "Open Cameras": "webcam",
-    "RDP Servers": "port:3389",
-    "MongoDB Databases": "port:27017",
-    "Web Servers": "apache",
+    "Live Webcams": "webcam has_screenshot:true",
+    "RDP Exposed": "port:3389",
+    "MongoDB Exposed": "port:27017",
+    "Elasticsearch Exposed": "port:9200",
+    "Docker Remote API": "port:2375",
+    "Telnet Login": 'port:23 "login:"',
+    "SSH Servers": "port:22",
+    "Industrial (Modbus)": "port:502",
+    "ICS/SCADA Systems": "port:20000 OR port:502 OR port:44818",
+    "Vulnerable Services": "vuln:heartbleed OR vuln:ms17-010 OR vuln:cve-",
+    "Honeypots": "honeypot:true",
+    "Default Passwords": '"admin" OR "password" OR "root" port:80 OR port:8080',
 }
 
-SHODAN_API_KEY = "E2EiszFxibiTL1lxPo0eUS5P3Wi3KuYa"
-
 def explain_port(port):
-    if port == 22:
-        return "SSH (remote login)"
-    elif port == 3389:
-        return "RDP (remote desktop)"
-    elif port == 27017:
-        return "MongoDB (database)"
-    elif port == 80:
-        return "Web server"
-    elif port == 443:
-        return "HTTPS web server"
-    else:
-        return f"Unknown service (port {port})"
+    explanations = {
+        22: "SSH - Remote login (brute-force target)",
+        23: "Telnet - Insecure plain-text access",
+        80: "HTTP Web Server",
+        443: "HTTPS Web Server",
+        3389: "RDP - Remote Desktop (very high attack risk)",
+        27017: "MongoDB - Often unsecured database",
+        9200: "Elasticsearch - Frequently exposed with sensitive data",
+        2375: "Docker Remote API - Can lead to full container takeover",
+        502: "Modbus - Industrial control system (critical infrastructure)",
+        20000: "DNP3 - SCADA/Industrial protocol",
+    }
+    return explanations.get(port, f"Service on port {port}")
+
 
 def get_shodan_alerts():
     alerts = []
 
-    if not SHODAN_API_KEY:
+    if not SHODAN_API_KEY or len(SHODAN_API_KEY) < 20:
+        print("⚠️ Shodan API key not configured properly.")
         return []
 
     label, query = random.choice(list(SHODAN_PRESETS.items()))
 
-    url = f"https://api.shodan.io/shodan/host/search?key={SHODAN_API_KEY}&query={query}"
+    url = f"https://api.shodan.io/shodan/host/search?key={SHODAN_API_KEY}&query={query}&limit=15"
 
     try:
-        r = requests.get(url, timeout=10)
+        print(f"🔍 Shodan [Paid] → {label} | Query: {query}")
+
+        r = requests.get(url, timeout=15)
+
+        if r.status_code == 429:
+            print("Rate limit hit — waiting 2 seconds...")
+            time.sleep(2)
+            return []
 
         if r.status_code != 200:
-            print("Shodan API error:", r.text)
+            print(f"Shodan error {r.status_code}: {r.text[:300]}")
             return []
 
         data = r.json()
-        matches = data.get("matches", [])[:10]
+        matches = data.get("matches", [])[:15]
 
         for item in matches:
             ip = item.get("ip_str", "Unknown")
-            org = item.get("org", "Unknown")
             port = item.get("port", 0)
+            org = item.get("org", "Unknown")
+            product = item.get("product") or item.get("_shodan", {}).get("module", "")
 
             explanation = explain_port(port)
 
-            # Smart severity logic
-            severity = 2
-            if port in [3389, 27017]:
-                severity = 5  # dangerous
-            elif port == 22:
+            # Higher severity for paid account discoveries
+            severity = 3
+            if port in [3389, 27017, 2375, 23, 502]:
+                severity = 5   # Critical
+            elif port in [22, 9200] or "vuln" in query.lower() or "honeypot" in query.lower():
+                severity = 4   # High
+            elif "webcam" in query.lower():
                 severity = 4
-            elif port == 80:
-                severity = 2
 
-            # Learning text
-            learning = f"{explanation}. This service is exposed to the internet."
+            title = f"{label}: {ip}"
+            if product:
+                title += f" — {product}"
 
-            # Create alert with all needed fields
+            learning = f"{explanation}. Org: {org}. This device/service is publicly reachable on the internet right now."
+
             alerts.append({
-                "title": f"{label}: {ip} ({explanation})",
+                "title": title,
                 "url": f"https://www.shodan.io/host/{ip}",
                 "source": "Shodan",
                 "severity": severity,
                 "type": "exposure",
                 "learning": learning,
-                "timestamp": datetime.utcnow().isoformat(),   # ← This prevents the timestamp error
-                "id": f"shodan-{ip}-{port}" if port else f"shodan-{ip}"
+                "timestamp": datetime.utcnow().isoformat(),
+                "id": f"shodan-{ip}-{port}-{int(time.time())}",
+                "port": port,
+                "org": org
             })
 
+        print(f"✅ Shodan added {len(alerts)} alerts")
+
     except Exception as e:
-        print("Shodan collector error:", e)
+        print(f"Shodan collector error: {e}")
+
+    # Small safety delay (respects 1 req/sec rule)
+    time.sleep(1.1)
 
     return alerts

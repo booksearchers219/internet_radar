@@ -61,15 +61,19 @@ def collect_data():
     for e in existing_data.get("alerts", []):
         existing_map[get_event_id(e)] = e
 
-    # 🔹 Collect new data
+    # 🔹 Collect new data from all sources
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = [
             executor.submit(detect_changes),
             executor.submit(get_cves),
             executor.submit(get_github_alerts),
             executor.submit(get_news),
-            executor.submit(get_shodan_alerts)  # 👈 ADD THIS LINE
+            executor.submit(get_shodan_alerts),  # Run every cycle with paid plan
         ]
+
+        # Run Shodan less often (only every 3rd cycle) to respect rate limits
+        if random.random() < 0.33:   # ~ every 30 minutes instead of every 10
+            futures.append(executor.submit(get_shodan_alerts))
 
         for future in futures:
             try:
@@ -82,13 +86,13 @@ def collect_data():
     # ✅ STEP 1 — DEDUPE FIRST (by stable ID)
     unique = {}
     for alert in alerts:
-        print("ID:", get_event_id(alert), "|", alert["title"])
         key = get_event_id(alert)
-        unique[key] = alert
+        if key not in unique:
+            unique[key] = alert
 
     alerts = list(unique.values())
 
-    # ✅ STEP 2 — ASSIGN OR REUSE LOCATION (BETTER DEFAULTS)
+    # ✅ STEP 2 — Assign realistic locations
     final_alerts = []
 
     for alert in alerts:
@@ -99,7 +103,7 @@ def collect_data():
             alert["lat"] = existing.get("lat")
             alert["lon"] = existing.get("lon")
         else:
-            # Better realistic defaults instead of pure random
+            # Location logic (kept your good defaults)
             title_lower = alert.get("title", "").lower()
 
             if "russia" in title_lower or "ukraine" in title_lower:
@@ -115,7 +119,6 @@ def collect_data():
                 alert["lat"] = random.uniform(40, 55)
                 alert["lon"] = random.uniform(-10, 30)
             else:
-                # Gentle random for others
                 alert["lat"] = random.uniform(-60, 70)
                 alert["lon"] = random.uniform(-170, 170)
 
@@ -126,20 +129,16 @@ def collect_data():
     # 🔹 Score events
     for alert in alerts:
         alert["score"] = score_event(alert)
-        print(f"[{alert['score']}] {alert['title']}")
 
-        if alert.get("learning"):
-            print(f"   🧠 {alert['learning']}")
-
-    # 🔹 Sort + limit
-    alerts.sort(key=lambda x: x["score"], reverse=True)
+    # 🔹 Sort + limit to top 50
+    alerts.sort(key=lambda x: x.get("score", 1), reverse=True)
     alerts = alerts[:50]
 
     # 🔹 Generate insights
     insights = generate_insights(alerts)
     correlations = detect_correlations(alerts)
 
-    # 🔹 Save
+    # 🔹 Save to file
     radar_data = {
         "last_update": now,
         "alerts": alerts,
@@ -150,9 +149,9 @@ def collect_data():
     with open(DATA_FILE, "w") as f:
         json.dump(radar_data, f, indent=2)
 
-    print("Radar data saved\n")
+    print(f"Radar data saved — {len(alerts)} total alerts\n")
 
-    # 🔥 SHOW INSIGHTS IN TERMINAL
+    # Show insights in terminal
     print("\n" + "=" * 40)
     print("🧠 INSIGHTS ENGINE OUTPUT")
     print("=" * 40 + "\n")
@@ -160,7 +159,6 @@ def collect_data():
         print(i)
 
     print("\n-----------------------------\n")
-
 
 def main():
     while True:
