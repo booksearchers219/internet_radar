@@ -8,14 +8,12 @@
     
     <div id="ticker" class="bg-black text-lime-400 p-3 font-mono text-sm mb-6 overflow-hidden whitespace-nowrap rounded-xl"></div>
 
-    <!-- Explicit height and flex to ensure map has space -->
     <div class="h-[700px] rounded-2xl border border-red-900 shadow-2xl overflow-hidden">
         <div id="map" style="height: 100%; width: 100%;"></div>
     </div>
 </div>
 
 <script>
-    // Initialize map AFTER everything is rendered
     function initMap() {
         var map = L.map('map', { scrollWheelZoom: false }).setView([20, 0], 2);
 
@@ -24,85 +22,67 @@
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        var cveLayer = L.markerClusterGroup();
-        var githubLayer = L.markerClusterGroup();
-        var newsLayer = L.markerClusterGroup();
-        var heatLayer = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 10 });
-
-        map.addLayer(cveLayer);
-        map.addLayer(githubLayer);
-        map.addLayer(newsLayer);
-        map.addLayer(heatLayer);
+        console.log("✅ Map initialized");
 
         function loadAlerts() {
             fetch("/alerts")
                 .then(r => r.json())
                 .then(data => {
-                    cveLayer.clearLayers();
-                    githubLayer.clearLayers();
-                    newsLayer.clearLayers();
-                    heatLayer.setLatLngs([]);
+                    console.log(`📡 Loaded ${data.alerts.length} alerts`);
 
-                    let hasMarkers = false;
+                    // Clear previous markers
+                    map.eachLayer(layer => {
+                        if (layer instanceof L.Marker) map.removeLayer(layer);
+                    });
 
-                    data.alerts.forEach(alert => {
-                        let lat = alert.lat;
-                        let lon = alert.lon;
-                        if (!lat || !lon || isNaN(lat) || isNaN(lon)) return;
+                    let added = 0;
 
-                        hasMarkers = true;
+                    data.alerts.forEach((alert, i) => {
+                        let lat = parseFloat(alert.lat);
+                        let lon = parseFloat(alert.lon);
 
-                        // Color-coded dot
-                        let color = "#eab308";
-                        if (alert.severity >= 5) color = "#ef4444";
-                        else if (alert.severity >= 3) color = "#f97316";
+                        if (!lat || !lon || isNaN(lat) || isNaN(lon)) {
+                            console.log(`Alert ${i} skipped: no valid lat/lon`);
+                            return;
+                        }
+
+                        added++;
+
+                        let color = "#eab308"; // yellow
+                        if (alert.severity >= 5) color = "#ef4444";      // red
+                        else if (alert.severity >= 3) color = "#f97316"; // orange
 
                         var icon = L.divIcon({
-                            html: `<div style="background-color:${color}; width:16px; height:16px; border-radius:50%; border:3px solid white;"></div>`,
-                            iconSize: [16, 16],
+                            html: `<div style="background-color:${color};width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 0 6px rgba(0,0,0,0.5);"></div>`,
+                            iconSize: [18, 18],
                             className: ''
                         });
 
-                        var marker = L.marker([lat, lon], { icon: icon })
+                        L.marker([lat, lon], { icon: icon })
+                            .addTo(map)
                             .bindPopup(`
                                 <b>${alert.title}</b><br>
                                 Source: ${alert.source}<br>
-                                Score: ${alert.score || alert.severity}
-                                ${alert.learning ? '<br>' + alert.learning : ''}
+                                Score: ${alert.score || alert.severity}<br>
+                                ${alert.learning ? alert.learning : ''}
                             `);
 
-                        if (alert.type === "vulnerability") cveLayer.addLayer(marker);
-                        else if (alert.type === "repository") githubLayer.addLayer(marker);
-                        else newsLayer.addLayer(marker);
-
-                        heatLayer.addLatLng([lat, lon, (alert.severity || 2) * 8]);
+                        console.log(`Added marker at [${lat.toFixed(2)}, ${lon.toFixed(2)}]`);
                     });
 
-                    // Live ticker
+                    console.log(`✅ Added ${added} markers`);
+
+                    // Ticker
                     var titles = data.alerts.slice(0, 12).map(a => "⚠ " + a.title);
                     document.getElementById("ticker").innerHTML = `<span>${titles.join("  •  ")}</span>`;
-
-                    // Force redraw if needed
-                    if (hasMarkers) map.invalidateSize();
                 })
-                .catch(err => console.error("Map load error:", err));
+                .catch(err => console.error("Fetch error:", err));
         }
 
         loadAlerts();
         setInterval(loadAlerts, 60000);
-
-        L.control.layers(null, {
-            "CVE Vulnerabilities": cveLayer,
-            "GitHub": githubLayer,
-            "News": newsLayer,
-            "Heatmap": heatLayer
-        }).addTo(map);
-
-        // Extra safety: redraw after a short delay
-        setTimeout(() => map.invalidateSize(), 500);
     }
 
-    // Run when page is fully loaded
     window.addEventListener('load', initMap);
 </script>
 
