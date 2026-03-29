@@ -2,9 +2,9 @@ import os
 import random
 import time
 from datetime import datetime
-import shodan   # Official library
+import shodan  # Official library
 
-# Load API key from environment (your .bashrc)
+# Load API key from environment
 SHODAN_API_KEY = os.environ.get("SHODAN_API_KEY", "").strip()
 
 if not SHODAN_API_KEY:
@@ -14,7 +14,7 @@ else:
     SHODAN_API = shodan.Shodan(SHODAN_API_KEY)
     print("✅ Shodan official library initialized successfully")
 
-# Rich presets for interesting discoveries
+# Rich presets for interesting discoveries (counts are cheap, details are expensive)
 SHODAN_PRESETS = {
     "Live Webcams": "webcam has_screenshot:true",
     "RDP Exposed": "port:3389",
@@ -46,21 +46,49 @@ def explain_port(port):
 
 def get_shodan_alerts():
     if not SHODAN_API:
+        print("⚠️ Shodan API not available (missing key)")
         return []
 
     alerts = []
-    label, query = random.choice(list(SHODAN_PRESETS.items()))
 
     try:
-        print(f"🔍 Shodan → {label}")
+        # First, show overview counts for all presets (this is very cheap / often free)
+        print("🔍 Shodan → Getting overview counts for exposed services...")
+        for label, query in list(SHODAN_PRESETS.items())[:8]:  # Limit to first 8 to keep it fast
+            try:
+                count_result = SHODAN_API.count(query)
+                total = count_result.get('total', 0)
+                print(f"   {label}: {total:,} hosts")
+            except Exception:
+                pass  # Don't fail the whole collector on one bad count
 
-        results = SHODAN_API.search(query, limit=12)
+        # Now pick ONE interesting category for detailed alerts (this is the part that can cost credits)
+        label, query = random.choice(list(SHODAN_PRESETS.items()))
+        print(f"\n🔍 Shodan → Detailed scan: {label}")
 
-        for item in results.get('matches', [])[:12]:
+        # Try to get count first
+        try:
+            count_result = SHODAN_API.count(query)
+            total = count_result.get('total', 0)
+            print(f"   Total matching hosts: {total:,}")
+        except Exception as e:
+            print(f"   Could not get count: {e}")
+            total = 0
+
+        # Only do actual search (costs credits) if we have a reasonable number of results
+        if total == 0:
+            print("   No hosts found for this query.")
+            return alerts
+
+        # Fetch a small number of recent/exposed hosts (limit=10 is safe)
+        results = SHODAN_API.search(query, limit=10)
+
+        added = 0
+        for item in results.get('matches', [])[:10]:
             ip = item.get('ip_str', 'Unknown')
             port = item.get('port', 0)
             org = item.get('org', 'Unknown Org')
-            product = item.get('product', '') or item.get('_shodan', {}).get('module', '')
+            product = item.get('product') or item.get('_shodan', {}).get('module', '')
 
             explanation = explain_port(port)
 
@@ -92,13 +120,21 @@ def get_shodan_alerts():
                 "org": org,
                 "product": product
             })
+            added += 1
 
-        print(f"✅ Shodan added {len(alerts)} alerts")
+        print(f"✅ Shodan added {added} detailed alerts from {label}")
 
     except shodan.APIError as e:
-        print(f"Shodan API Error: {e}")
+        error_str = str(e).lower()
+        if "insufficient query credits" in error_str or "credit" in error_str:
+            print("❌ Shodan API Error: Insufficient query credits.")
+            print("   Consider upgrading your plan or waiting for monthly reset.")
+            print("   (Counts still worked — only detailed search was skipped)")
+        else:
+            print(f"❌ Shodan API Error: {e}")
     except Exception as e:
-        print(f"Shodan error: {e}")
+        print(f"❌ Shodan error: {e}")
 
-    time.sleep(1.2)  # Respect rate limits
+    # Small delay to be respectful
+    time.sleep(1.5)
     return alerts
