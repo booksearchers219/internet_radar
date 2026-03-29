@@ -61,10 +61,23 @@
     let countdownInterval = null;
     const REFRESH_SECONDS = 30;
 
+    // Safe Last Updated (works on all pages, even if 'data' is missing)
     function updateLastUpdated() {
-        const lastUpdateStr = "{{ data.last_update|default('') }}";
         const el = document.getElementById('last-update');
-        if (!el || !lastUpdateStr) return;
+        if (!el) return;
+
+        // Safely get last_update - works whether 'data' exists or not
+        let lastUpdateStr = "";
+        try {
+            lastUpdateStr = "{{ data.last_update|default('') if data is defined else '' }}";
+        } catch (e) {
+            lastUpdateStr = "";
+        }
+
+        if (!lastUpdateStr) {
+            el.textContent = "Last updated: —";
+            return;
+        }
 
         const lastUpdate = new Date(lastUpdateStr);
         const now = new Date();
@@ -77,6 +90,8 @@
 
         el.textContent = displayText;
     }
+
+    // ... rest of your functions (startCountdown, startAutoRefresh, etc.) stay the same ...
 
     function startCountdown() {
         if (countdownInterval) clearInterval(countdownInterval);
@@ -131,6 +146,7 @@
         location.reload();
     }
 
+    // Keyboard shortcut
     document.addEventListener('keydown', function (e) {
         if (e.key.toLowerCase() === 'r' &&
             !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
@@ -138,10 +154,11 @@
         }
     });
 
+    // Initialize
     document.addEventListener('DOMContentLoaded', function () {
         updateLastUpdated();
-        setInterval(updateLastUpdated, 30000);
-        console.log("✅ Internet Radar loaded — Auto-refresh is OFF by default (press R to toggle)");
+        setInterval(updateLastUpdated, 30000);   // keep it fresh
+        console.log("✅ Internet Radar loaded");
     });
 </script>
 </body>
