@@ -5,30 +5,144 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Internet Radar</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <style>
-        #map { height: 500px; }
-        .threat-card { transition: all 0.3s; }
-        .threat-card:hover { transform: translateY(-4px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
+        #map {
+            height: 500px;
+        }
+
+        .threat-card {
+            transition: all 0.3s;
+        }
+
+        .threat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-100">
-    <div class="min-h-screen">
-        <!-- Navbar -->
-        <nav class="bg-black border-b border-red-900 p-4">
-            <div class="max-w-7xl mx-auto flex justify-between items-center">
-                <h1 class="text-3xl font-bold text-red-500">🌐 INTERNET RADAR</h1>
-                <div id="last-update" class="text-sm text-gray-400"></div>
+<div class="min-h-screen">
+    <!-- Navbar -->
+    <nav class="bg-black border-b border-red-900 p-4 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <h1 class="text-3xl font-bold text-red-500">🌐 INTERNET RADAR</h1>
+
+            <div class="flex items-center gap-6 text-sm">
+                <!-- Last Updated -->
+                <div id="last-update" class="text-gray-400"></div>
+
+                <!-- Refresh Controls -->
+                <div class="flex items-center gap-3">
+                    <button onclick="manualRefresh()"
+                            class="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2">
+                        ↻ Refresh Now
+                    </button>
+
+                    <button onclick="toggleAutoRefresh()"
+                            id="auto-refresh-btn"
+                            class="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2">
+                        <span id="auto-status">Auto: OFF</span>
+                    </button>
+                </div>
             </div>
-        </nav>
+        </div>
+    </nav>
 
-        {% block content %}{% endblock %}
-    </div>
+    {% block content %}{% endblock %}
+</div>
 
-    <script>
-        // Auto-refresh every 30 seconds (adjust as needed)
-        setInterval(() => location.reload(), 30000);
-    </script>
+<script>
+    // ==================== CONFIG ====================
+    let autoRefreshEnabled = false;
+    let refreshInterval = null;
+    let countdownInterval = null;
+    const REFRESH_SECONDS = 30;
+
+    function updateLastUpdated() {
+        const lastUpdateStr = "{{ data.last_update|default('') }}";
+        const el = document.getElementById('last-update');
+        if (!el || !lastUpdateStr) return;
+
+        const lastUpdate = new Date(lastUpdateStr);
+        const now = new Date();
+        const diffMinutes = Math.floor((now - lastUpdate) / 60000);
+
+        let displayText = "Last updated: ";
+        if (diffMinutes < 1) displayText += "just now";
+        else if (diffMinutes < 60) displayText += diffMinutes + " min ago";
+        else displayText += Math.floor(diffMinutes / 60) + " hours ago";
+
+        el.textContent = displayText;
+    }
+
+    function startCountdown() {
+        if (countdownInterval) clearInterval(countdownInterval);
+        let remaining = REFRESH_SECONDS;
+        const btn = document.getElementById('auto-refresh-btn');
+
+        countdownInterval = setInterval(() => {
+            if (!autoRefreshEnabled) {
+                clearInterval(countdownInterval);
+                return;
+            }
+            remaining--;
+            if (btn) btn.querySelector('#auto-status').textContent = `Auto: ${remaining}s`;
+
+            if (remaining <= 0) {
+                remaining = REFRESH_SECONDS;
+                location.reload();
+            }
+        }, 1000);
+    }
+
+    function startAutoRefresh() {
+        if (refreshInterval) clearInterval(refreshInterval);
+        refreshInterval = setInterval(() => {
+            if (autoRefreshEnabled) location.reload();
+        }, REFRESH_SECONDS * 1000);
+        startCountdown();
+    }
+
+    function stopAutoRefresh() {
+        if (refreshInterval) clearInterval(refreshInterval);
+        if (countdownInterval) clearInterval(countdownInterval);
+        refreshInterval = null;
+        countdownInterval = null;
+
+        const btn = document.getElementById('auto-refresh-btn');
+        if (btn) btn.querySelector('#auto-status').textContent = "Auto: OFF";
+    }
+
+    function toggleAutoRefresh() {
+        autoRefreshEnabled = !autoRefreshEnabled;
+        if (autoRefreshEnabled) {
+            startAutoRefresh();
+            console.log("🔄 Auto-refresh ENABLED");
+        } else {
+            stopAutoRefresh();
+            console.log("⏹️ Auto-refresh DISABLED");
+        }
+    }
+
+    function manualRefresh() {
+        location.reload();
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key.toLowerCase() === 'r' &&
+            !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+            toggleAutoRefresh();
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        updateLastUpdated();
+        setInterval(updateLastUpdated, 30000);
+        console.log("✅ Internet Radar loaded — Auto-refresh is OFF by default (press R to toggle)");
+    });
+</script>
 </body>
 </html>
